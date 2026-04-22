@@ -1,0 +1,38 @@
+# Remote storage pool node for File-Uploader (HTTP API).
+# See README.md for wiring the PHP app (migration_023 + Admin → Storage).
+
+services:
+  storage-node:
+    build:
+      context: ./storage-node
+      dockerfile: Dockerfile
+    ports:
+      # Management UI only (/, /ui/*).
+      - "80:80"
+      # Storage HTTP API for the PHP app (/v1/*).
+      - "3901:3901"
+    environment:
+      UI_PORT: "80"
+      API_PORT: "3901"
+      DATA_ROOT: /data
+      STORAGE_API_SECRET: ${STORAGE_API_SECRET:?Set STORAGE_API_SECRET in .env}
+      # Optional cap for a single PUT (default 64 GiB)
+      # MAX_PUT_BYTES: "68719476736"
+    volumes:
+      - storage_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3901/v1/health',{headers:{Authorization:'Bearer '+process.env.STORAGE_API_SECRET}}).then(r=>r.json()).then(j=>process.exit(j&&j.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  storage_data:
